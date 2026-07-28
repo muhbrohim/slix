@@ -51,6 +51,9 @@ struct ParseArgs {
 
     #[arg(long, value_enum)]
     output: Option<Format>,
+
+    #[arg(long, hide = true)]
+    protocol: bool,
 }
 
 #[derive(Args)]
@@ -120,6 +123,7 @@ fn run() -> Result<u8> {
                 clipboard: false,
                 message: None,
                 output: None,
+                protocol: false,
             },
         ),
         None => {
@@ -172,8 +176,8 @@ fn parse_command(project_name: Option<&str>, args: ParseArgs) -> Result<u8> {
                 .and_then(|config| config.default_output)
                 .and_then(|value| Format::from_str(&value, true).ok())
         })
-        .unwrap_or(Format::Table);
-    print_results(&results, format)?;
+        .unwrap_or(Format::Json);
+    print_results(&results, format, args.protocol)?;
     Ok(if results.iter().any(|result| !result.errors.is_empty()) {
         1
     } else {
@@ -231,8 +235,8 @@ fn read_clipboard() -> Result<Vec<u8>> {
     }
 }
 
-fn print_results(results: &[ParseResult], format: Format) -> Result<()> {
-    if matches!(format, Format::Json) {
+fn print_results(results: &[ParseResult], format: Format, protocol: bool) -> Result<()> {
+    if protocol {
         println!(
             "{}",
             serde_json::to_string_pretty(&BatchResult {
@@ -240,6 +244,15 @@ fn print_results(results: &[ParseResult], format: Format) -> Result<()> {
                 results: results.to_vec(),
             })?
         );
+        return Ok(());
+    }
+    if matches!(format, Format::Json) {
+        if let [result] = results {
+            println!("{}", output::render_json(result)?);
+        } else {
+            let values: Vec<_> = results.iter().map(output::clean_json_value).collect();
+            println!("{}", serde_json::to_string_pretty(&values)?);
+        }
         return Ok(());
     }
     for (index, result) in results.iter().enumerate() {

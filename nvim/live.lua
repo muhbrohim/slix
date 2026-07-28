@@ -66,7 +66,7 @@ local function parse()
   end
   if #messages == 0 then close_panels(); return end
   vim.system(
-    { vim.g.slix_executable, "parse", "--output", "json" },
+    { vim.g.slix_executable, "parse", "--protocol" },
     { stdin = table.concat(messages, "\n"), text = true },
     vim.schedule_wrap(function(result)
       if current ~= generation then return end

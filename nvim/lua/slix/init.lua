@@ -136,7 +136,10 @@ local function parse(message, format)
   local tab_state = state(tab)
   tab_state.parse_generation = (tab_state.parse_generation or 0) + 1
   local generation = tab_state.parse_generation
-  system(argv("parse", "--output", "json", "--message", message), function(result)
+  local command = format == "json"
+      and argv("parse", "--output", "json", "--message", message)
+      or argv("parse", "--protocol", "--message", message)
+  system(command, function(result)
     if state(tab).parse_generation ~= generation then return end
     if result.code ~= 0 and result.code ~= 1 then
       notify(result.stderr ~= "" and result.stderr or "parse failed", vim.log.levels.ERROR)
@@ -145,6 +148,16 @@ local function parse(message, format)
     local ok, decoded = pcall(vim.json.decode, result.stdout or "")
     if not ok or type(decoded) ~= "table" then
       notify(result.stderr ~= "" and result.stderr or "invalid parse JSON", vim.log.levels.ERROR)
+      return
+    end
+    if format == "json" then
+      local win, buf = scratch_window(tab, "output")
+      vim.bo[buf].modifiable = true
+      vim.api.nvim_buf_set_lines(buf, 0, -1, false, vim.split(vim.trim(result.stdout), "\n", { plain = true }))
+      vim.bo[buf].modifiable = false
+      vim.bo[buf].filetype = "json"
+      vim.b[buf].slix_fields = {}
+      vim.api.nvim_set_current_win(win)
       return
     end
     show_parse(tab, decoded, result.stdout, format == "offsets" and "table" or format)

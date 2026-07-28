@@ -29,6 +29,9 @@ Each non-empty input line is one message. Real enterprise specifications are
 stored outside this repository under the platform configuration directory,
 normally `~/.config/slix/projects/`.
 
+Parsing outputs clean nested JSON by default. Use `--output table`, `yaml`,
+`csv`, or `raw` when another representation is more useful.
+
 ## Build
 
 ```powershell

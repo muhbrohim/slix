@@ -56,11 +56,29 @@ fn returns_partial_results_and_renders_formats() {
     let long = parse_message(b"A 123ZY", root.path(), UTF_8).unwrap();
     assert_eq!(long.unparsed_tail.as_deref(), Some("Y"));
     assert_eq!(long.warnings[0].code, "overflow");
-    assert!(
-        render_json(&long)
-            .unwrap()
-            .contains("\"schema_version\": 1")
-    );
+    let json: serde_json::Value = serde_json::from_str(&render_json(&long).unwrap()).unwrap();
+    assert_eq!(json["service_code"], "A");
+    assert_eq!(json["header"]["more"], "123");
+    assert_eq!(json["body"]["body"], "Z");
+    assert!(json.get("schema_version").is_none());
     assert!(render_csv(&long).starts_with("path,value,start,end"));
     assert!(render_raw(&long).contains("header.service_code=A "));
+}
+
+#[test]
+fn renders_repeat_groups_as_clean_json_arrays() {
+    let root = tempfile::tempdir().unwrap();
+    fs::create_dir(root.path().join("body")).unwrap();
+    fs::write(root.path().join("header.spec"), "service_code 3\n").unwrap();
+    fs::write(
+        root.path().join("body").join("ABC.spec"),
+        "# endpoint: /customer\n@repeat rows 2\nvalue 2\n@end\n",
+    )
+    .unwrap();
+
+    let result = parse_message(b"ABC0102", root.path(), UTF_8).unwrap();
+    let json: serde_json::Value = serde_json::from_str(&render_json(&result).unwrap()).unwrap();
+    assert_eq!(json["endpoint"], "/customer");
+    assert_eq!(json["body"]["rows"][0]["value"], "01");
+    assert_eq!(json["body"]["rows"][1]["value"], "02");
 }

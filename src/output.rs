@@ -1,5 +1,7 @@
 use crate::Result;
-use crate::parser::{FieldResult, ParseResult};
+use serde_json::{Map, Value, json};
+
+use crate::parser::{FieldResult, ParseResult, SectionResult};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OutputFormat {
@@ -48,7 +50,27 @@ pub fn render_table(result: &ParseResult) -> String {
 }
 
 pub fn render_json(result: &ParseResult) -> Result<String> {
-    Ok(serde_json::to_string_pretty(result)?)
+    Ok(serde_json::to_string_pretty(&clean_json_value(result))?)
+}
+
+pub fn clean_json_value(result: &ParseResult) -> Value {
+    let metadata = result
+        .body
+        .as_ref()
+        .map(|body| &body.metadata)
+        .unwrap_or(&result.header.metadata);
+    json!({
+        "service_code": result.service.code.as_deref().map(str::trim),
+        "endpoint": metadata_value(metadata.get("endpoint")),
+        "category": metadata_value(metadata.get("category")),
+        "section": metadata_value(metadata.get("section")),
+        "program": metadata_value(metadata.get("program")),
+        "header": section_value(&result.header, "header."),
+        "body": result.body.as_ref().map(|body| section_value(body, "body.")).unwrap_or_else(|| json!({})),
+        "warnings": result.warnings.iter().map(|item| item.message.as_str()).collect::<Vec<_>>(),
+        "errors": result.errors.iter().map(|item| item.message.as_str()).collect::<Vec<_>>(),
+        "unparsed_tail": result.unparsed_tail,
+    })
 }
 
 pub fn render_yaml(result: &ParseResult) -> Result<String> {
@@ -103,4 +125,46 @@ fn csv_escape(value: &str) -> String {
 
 fn visible(value: &str) -> String {
     value.replace('\r', "\\r").replace('\n', "\\n")
+}
+
+fn metadata_value(value: Option<&String>) -> Option<&str> {
+    value
+        .map(String::as_str)
+        .filter(|value| !matches!(*value, "" | "-" | "<none>"))
+}
+
+fn section_value(section: &SectionResult, prefix: &str) -> Value {
+    let mut object = Map::new();
+    let mut arrays: Map<String, Value> = Map::new();
+    for field in &section.fields {
+        let path = field.path.strip_prefix(prefix).unwrap_or(&field.path);
+        if let Some((group, index, name)) = repeat_path(path) {
+            let entries = arrays
+                .entry(group.to_owned())
+                .or_insert_with(|| Value::Array(Vec::new()))
+                .as_array_mut()
+                .expect("repeat entry is always an array");
+            while entries.len() < index {
+                entries.push(Value::Object(Map::new()));
+            }
+            entries[index - 1]
+                .as_object_mut()
+                .expect("repeat item is always an object")
+                .insert(name.to_owned(), Value::String(field.value.clone()));
+        } else {
+            object.insert(path.to_owned(), Value::String(field.value.clone()));
+        }
+    }
+    object.extend(arrays);
+    Value::Object(object)
+}
+
+fn repeat_path(path: &str) -> Option<(&str, usize, &str)> {
+    let bracket = path.find('[')?;
+    let close = path[bracket + 1..].find(']')? + bracket + 1;
+    if path.as_bytes().get(close + 1) != Some(&b'.') {
+        return None;
+    }
+    let index = path[bracket + 1..close].parse().ok()?;
+    Some((&path[..bracket], index, &path[close + 2..]))
 }
