@@ -1,0 +1,8 @@
+/target/
+/.idea/
+/.vscode/
+*.swp
+*.swo
+
+# Enterprise specifications belong in the user configuration directory.
+/projects/
