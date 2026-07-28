@@ -17,29 +17,10 @@ local function close_panels()
   panels = {}
 end
 
-local function table_lines(result, number)
-  local lines = { "MESSAGE " .. number, "" }
-  table.insert(lines, string.format("%-34s  %11s  %s", "FIELD", "BYTES", "VALUE"))
-  table.insert(lines, string.rep("-", 72))
-  for _, field in ipairs(result.fields or {}) do
-    local value = field.value:gsub("\r", "\\r"):gsub("\n", "\\n")
-    table.insert(lines, string.format("%-34s  %5d-%-5d  %s", field.path, field.start, field["end"], value))
-  end
-  for _, diagnostic in ipairs(result.warnings or {}) do
-    table.insert(lines, "")
-    table.insert(lines, "warning [" .. diagnostic.code .. "]: " .. diagnostic.message)
-  end
-  for _, diagnostic in ipairs(result.errors or {}) do
-    table.insert(lines, "")
-    table.insert(lines, "error [" .. diagnostic.code .. "]: " .. diagnostic.message)
-  end
-  return lines
-end
-
 local function show(results)
   close_panels()
   vim.api.nvim_set_current_buf(source)
-  for index, result in ipairs(results) do
+  for _, result in ipairs(results) do
     vim.cmd("rightbelow vsplit")
     local win = vim.api.nvim_get_current_win()
     local buf = vim.api.nvim_create_buf(false, true)
@@ -47,8 +28,8 @@ local function show(results)
     vim.bo[buf].buftype = "nofile"
     vim.bo[buf].bufhidden = "wipe"
     vim.bo[buf].swapfile = false
-    vim.bo[buf].filetype = "slix-output"
-    vim.api.nvim_buf_set_lines(buf, 0, -1, false, table_lines(result, index))
+    vim.bo[buf].filetype = "json"
+    vim.api.nvim_buf_set_lines(buf, 0, -1, false, vim.split(result, "\n", { plain = true }))
     vim.bo[buf].modifiable = false
     table.insert(panels, { win = win, buf = buf })
   end
@@ -75,7 +56,7 @@ local function parse()
         return
       end
       local ok, decoded = pcall(vim.json.decode, result.stdout)
-      if ok then show(decoded.results or {}) else vim.notify(result.stdout, vim.log.levels.ERROR) end
+      if ok then show(decoded.rendered_json or {}) else vim.notify(result.stdout, vim.log.levels.ERROR) end
     end)
   )
 end

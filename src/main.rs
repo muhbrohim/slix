@@ -89,6 +89,7 @@ enum Format {
 struct BatchResult {
     schema_version: u8,
     results: Vec<ParseResult>,
+    rendered_json: Vec<String>,
 }
 
 #[derive(Serialize)]
@@ -242,6 +243,10 @@ fn print_results(results: &[ParseResult], format: Format, protocol: bool) -> Res
             serde_json::to_string_pretty(&BatchResult {
                 schema_version: 1,
                 results: results.to_vec(),
+                rendered_json: results
+                    .iter()
+                    .map(output::render_json)
+                    .collect::<Result<Vec<_>>>()?,
             })?
         );
         return Ok(());

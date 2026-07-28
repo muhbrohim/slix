@@ -57,7 +57,9 @@ repository.
 ## Neovim
 
 Bare `slix` starts an empty Neovim buffer with automatic, debounced parsing.
-Each non-empty message line receives its own result panel.
+Each non-empty message line receives its own clean JSON result panel. Metadata
+appears first, followed by the header and body; scalar body fields precede
+repeated collections, and `unparsed_tail` remains last.
 
 For normal Neovim sessions, load the local plugin from `nvim/` and call:
 

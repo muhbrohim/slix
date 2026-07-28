@@ -81,4 +81,13 @@ fn renders_repeat_groups_as_clean_json_arrays() {
     assert_eq!(json["endpoint"], "/customer");
     assert_eq!(json["body"]["rows"][0]["value"], "01");
     assert_eq!(json["body"]["rows"][1]["value"], "02");
+
+    let rendered = render_json(&result).unwrap();
+    let service = rendered.find("\"service_code\"").unwrap();
+    let endpoint = rendered.find("\"endpoint\"").unwrap();
+    let header = rendered.find("\"header\"").unwrap();
+    let body = rendered.find("\"body\"").unwrap();
+    let tail = rendered.find("\"unparsed_tail\"").unwrap();
+    assert!(service < endpoint && endpoint < header && header < body && body < tail);
+    assert!(rendered.find("\"rows\"").unwrap() > rendered.find("\"service_code\"").unwrap());
 }

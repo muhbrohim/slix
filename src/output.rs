@@ -1,5 +1,5 @@
 use crate::Result;
-use serde_json::{Map, Value, json};
+use serde_json::{Map, Value};
 
 use crate::parser::{FieldResult, ParseResult, SectionResult};
 
@@ -59,18 +59,63 @@ pub fn clean_json_value(result: &ParseResult) -> Value {
         .as_ref()
         .map(|body| &body.metadata)
         .unwrap_or(&result.header.metadata);
-    json!({
-        "service_code": result.service.code.as_deref().map(str::trim),
-        "endpoint": metadata_value(metadata.get("endpoint")),
-        "category": metadata_value(metadata.get("category")),
-        "section": metadata_value(metadata.get("section")),
-        "program": metadata_value(metadata.get("program")),
-        "header": section_value(&result.header, "header."),
-        "body": result.body.as_ref().map(|body| section_value(body, "body.")).unwrap_or_else(|| json!({})),
-        "warnings": result.warnings.iter().map(|item| item.message.as_str()).collect::<Vec<_>>(),
-        "errors": result.errors.iter().map(|item| item.message.as_str()).collect::<Vec<_>>(),
-        "unparsed_tail": result.unparsed_tail,
-    })
+    let mut output = Map::new();
+    output.insert(
+        "service_code".to_owned(),
+        result
+            .service
+            .code
+            .as_deref()
+            .map(str::trim)
+            .map_or(Value::Null, |value| Value::String(value.to_owned())),
+    );
+    for key in ["endpoint", "category", "section", "program"] {
+        output.insert(
+            key.to_owned(),
+            metadata_value(metadata.get(key))
+                .map_or(Value::Null, |value| Value::String(value.to_owned())),
+        );
+    }
+    output.insert(
+        "header".to_owned(),
+        section_value(&result.header, "header."),
+    );
+    output.insert(
+        "body".to_owned(),
+        result
+            .body
+            .as_ref()
+            .map(|body| section_value(body, "body."))
+            .unwrap_or_else(|| Value::Object(Map::new())),
+    );
+    output.insert(
+        "warnings".to_owned(),
+        Value::Array(
+            result
+                .warnings
+                .iter()
+                .map(|item| Value::String(item.message.clone()))
+                .collect(),
+        ),
+    );
+    output.insert(
+        "errors".to_owned(),
+        Value::Array(
+            result
+                .errors
+                .iter()
+                .map(|item| Value::String(item.message.clone()))
+                .collect(),
+        ),
+    );
+    output.insert(
+        "unparsed_tail".to_owned(),
+        result
+            .unparsed_tail
+            .as_ref()
+            .map_or(Value::Null, |tail| Value::String(tail.clone())),
+    );
+    Value::Object(output)
 }
 
 pub fn render_yaml(result: &ParseResult) -> Result<String> {
