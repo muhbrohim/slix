@@ -33,8 +33,10 @@ local function show(results)
     vim.bo[buf].modifiable = false
     table.insert(panels, { win = win, buf = buf })
   end
-  local source_win = vim.fn.bufwinid(source)
-  if source_win ~= -1 then vim.api.nvim_set_current_win(source_win) end
+  if panels[1] and vim.api.nvim_win_is_valid(panels[1].win) then
+    vim.api.nvim_set_current_win(panels[1].win)
+    vim.api.nvim_win_set_cursor(panels[1].win, { 1, 0 })
+  end
 end
 
 local function parse()
