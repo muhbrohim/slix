@@ -82,9 +82,9 @@ pub fn parse_spec(source: &str, path: impl Into<PathBuf>) -> Result<Spec> {
             continue;
         }
 
-        if line.starts_with('#') {
+        if let Some(comment) = line.strip_prefix('#') {
             if !fields_started {
-                if let Some((key, value)) = line[1..].split_once(':') {
+                if let Some((key, value)) = comment.split_once(':') {
                     let key = key.trim();
                     if !key.is_empty() {
                         metadata.insert(key.to_owned(), value.trim().to_owned());

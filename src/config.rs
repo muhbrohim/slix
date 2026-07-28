@@ -81,7 +81,7 @@ pub(crate) fn atomic_write(path: &Path, contents: &[u8]) -> Result<()> {
         {
             Ok(file) => break (candidate, file),
             Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
-                attempt = attempt.checked_add(1).ok_or_else(|| Error::Write {
+                attempt = attempt.checked_add(1).ok_or(Error::Write {
                     path: candidate,
                     source: error,
                 })?;

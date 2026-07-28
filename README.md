@@ -37,6 +37,38 @@ cargo build --release --locked
 
 The distributable executable is `target\release\slix.exe` on Windows.
 
+## First project
+
+Import an existing Slicer-compatible specification directory once:
+
+```powershell
+.\target\release\slix.exe project import LHB C:\path\to\specs
+.\target\release\slix.exe project use LHB
+.\target\release\slix.exe doctor
+```
+
+Slix copies specifications into its managed configuration directory. The
+source specifications and imported enterprise data are not committed to this
+repository.
+
+## Neovim
+
+Bare `slix` starts an empty Neovim buffer with automatic, debounced parsing.
+Each non-empty message line receives its own result panel.
+
+For normal Neovim sessions, load the local plugin from `nvim/` and call:
+
+```lua
+require("slix").setup({
+    cmd = { "C:/path/to/slix.exe" },
+    project = "LHB",
+})
+```
+
+The default mappings preserve the Slicer workflow: `<leader>ss`, `<leader>sb`,
+`<leader>sj`, `<leader>sr`, `<leader>sS`, and `<leader>sf`. Slix also adds
+`<leader>sd` for field-definition jumps and `<leader>sR` to reload specs.
+
 ## License
 
 MIT

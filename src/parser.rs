@@ -183,6 +183,13 @@ fn parse_section(
     let mut fields = Vec::new();
     let mut groups = Vec::new();
     let mut truncated = false;
+    let mut state = ParseState {
+        bytes,
+        offset,
+        encoding,
+        warnings,
+        errors,
+    };
 
     for entry in &spec.entries {
         if truncated {
@@ -191,9 +198,7 @@ fn parse_section(
         match entry {
             SpecEntry::Field(field) => {
                 let path = format!("{prefix}.{}", field.name);
-                if let Some(value) =
-                    parse_field(field, path, spec, bytes, offset, encoding, warnings, errors)
-                {
+                if let Some(value) = parse_field(field, path, spec, &mut state) {
                     fields.push(value);
                 } else {
                     truncated = true;
@@ -206,9 +211,7 @@ fn parse_section(
                     for field in &group.fields {
                         let path =
                             format!("{prefix}.{}[{:02}].{}", group.name, index + 1, field.name);
-                        if let Some(value) = parse_field(
-                            field, path, spec, bytes, offset, encoding, warnings, errors,
-                        ) {
+                        if let Some(value) = parse_field(field, path, spec, &mut state) {
                             fields.push(value.clone());
                             occurrence.push(value);
                         } else {
@@ -239,19 +242,23 @@ fn parse_section(
     }
 }
 
+struct ParseState<'a> {
+    bytes: &'a [u8],
+    offset: &'a mut usize,
+    encoding: &'static Encoding,
+    warnings: &'a mut Vec<Diagnostic>,
+    errors: &'a mut Vec<Diagnostic>,
+}
+
 fn parse_field(
     field: &FieldSpec,
     path: String,
     spec: &Spec,
-    bytes: &[u8],
-    offset: &mut usize,
-    encoding: &'static Encoding,
-    warnings: &mut Vec<Diagnostic>,
-    errors: &mut Vec<Diagnostic>,
+    state: &mut ParseState<'_>,
 ) -> Option<FieldResult> {
-    let available = bytes.len().saturating_sub(*offset);
+    let available = state.bytes.len().saturating_sub(*state.offset);
     if available < field.length {
-        errors.push(Diagnostic::new(
+        state.errors.push(Diagnostic::new(
             "truncated_field",
             format!(
                 "field `{path}` requires {} byte(s), but only {available} remain",
@@ -260,14 +267,18 @@ fn parse_field(
         ));
         return None;
     }
-    let start = *offset;
-    *offset += field.length;
-    let value = decode(encoding, &bytes[start..*offset], warnings);
+    let start = *state.offset;
+    *state.offset += field.length;
+    let value = decode(
+        state.encoding,
+        &state.bytes[start..*state.offset],
+        state.warnings,
+    );
     Some(FieldResult {
         path,
         value,
         start,
-        end: *offset - 1,
+        end: *state.offset - 1,
         spec_path: spec.path.clone(),
         spec_line: field.line,
     })
