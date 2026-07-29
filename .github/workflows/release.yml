@@ -8,24 +8,89 @@ permissions:
   contents: write
 
 jobs:
+  validate:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: version
+        shell: bash
+        run: |
+          version="$(sed -n 's/^version = "\([^"]*\)"/\1/p' Cargo.toml | head -n 1)"
+          test -n "$version"
+          test "${GITHUB_REF_NAME}" = "v${version}"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
   build:
+    needs: validate
     strategy:
       matrix:
         include:
           - os: windows-latest
             target: x86_64-pc-windows-msvc
-            artifact: slix.exe
+            archive: zip
           - os: ubuntu-latest
-            target: x86_64-unknown-linux-gnu
-            artifact: slix
+            target: x86_64-unknown-linux-musl
+            archive: tar.gz
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
+      - name: Install musl toolchain
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install --yes musl-tools
+      - run: cargo test --all-targets --all-features --locked
       - run: cargo build --release --locked --target ${{ matrix.target }}
+      - name: Package Windows archive
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $name = "slix-v${{ needs.validate.outputs.version }}-${{ matrix.target }}"
+          New-Item -ItemType Directory -Path $name
+          Copy-Item "target/${{ matrix.target }}/release/slix.exe", README.md, LICENSE -Destination $name
+          Compress-Archive -Path "$name/*" -DestinationPath "$name.zip"
+          Expand-Archive "$name.zip" -DestinationPath smoke
+          & "smoke/slix.exe" --version
+      - name: Package Linux archive
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          name="slix-v${{ needs.validate.outputs.version }}-${{ matrix.target }}"
+          mkdir "$name"
+          cp "target/${{ matrix.target }}/release/slix" README.md LICENSE "$name/"
+          tar -czf "$name.tar.gz" -C "$name" .
+          mkdir smoke
+          tar -xzf "$name.tar.gz" -C smoke
+          "smoke/slix" --version
       - uses: actions/upload-artifact@v4
         with:
           name: slix-${{ matrix.target }}
-          path: target/${{ matrix.target }}/release/${{ matrix.artifact }}
+          path: slix-v${{ needs.validate.outputs.version }}-${{ matrix.target }}.${{ matrix.archive }}
+          if-no-files-found: error
+
+  publish:
+    needs: [validate, build]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: slix-*
+          path: dist
+          merge-multiple: true
+      - name: Generate checksums
+        working-directory: dist
+        run: sha256sum slix-* > SHA256SUMS
+      - name: Publish GitHub prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/* \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "Slix $GITHUB_REF_NAME" \
+            --notes-file <(sed -n '/^## \[${{ needs.validate.outputs.version }}\]/,/^\[Unreleased\]:/p' CHANGELOG.md | sed '$d') \
+            --prerelease \
+            --verify-tag

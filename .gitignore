@@ -3,6 +3,7 @@
 /.vscode/
 *.swp
 *.swo
+/session-*.md
 
 # Enterprise specifications belong in the user configuration directory.
 /projects/

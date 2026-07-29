@@ -17,6 +17,7 @@ use slix::{Error, Result};
 #[derive(Parser)]
 #[command(version, about)]
 struct Cli {
+    /// Use a project instead of the configured active project
     #[arg(long, global = true)]
     project: Option<String>,
 
@@ -26,29 +27,40 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
+    /// Parse messages from a file, standard input, or the clipboard
     Parse(ParseArgs),
+    /// List available specifications
     List(ListArgs),
+    /// Open a specification or the active specification directory
     Open {
+        /// Service code of the specification to open
         service_code: Option<String>,
     },
+    /// Inspect and manage specification projects
     Project {
         #[command(subcommand)]
         command: Option<ProjectCommand>,
     },
+    /// Check configuration, project specifications, and Neovim
     Doctor,
+    /// Show statistics for the active project
     Stats,
 }
 
 #[derive(Args)]
 struct ParseArgs {
+    /// File containing one message per non-empty line; reads stdin when omitted
     file: Option<PathBuf>,
 
+    /// Read one message from the system clipboard
     #[arg(long, conflicts_with_all = ["file", "message"])]
     clipboard: bool,
 
+    /// Parse a message supplied directly on the command line
     #[arg(long, conflicts_with_all = ["file", "clipboard"])]
     message: Option<String>,
 
+    /// Output representation
     #[arg(long, value_enum)]
     output: Option<Format>,
 
@@ -58,18 +70,21 @@ struct ParseArgs {
 
 #[derive(Args)]
 struct ListArgs {
+    /// Filter by service code, path, or metadata
     query: Option<String>,
 
+    /// Emit machine-readable JSON
     #[arg(long)]
     json: bool,
 }
 
 #[derive(Subcommand)]
 enum ProjectCommand {
+    /// List imported projects
     List,
-    Use {
-        name: String,
-    },
+    /// Select the active project
+    Use { name: String },
+    /// Copy a Slicer-compatible specification directory into Slix
     Import {
         name: String,
         specs_directory: PathBuf,
