@@ -62,7 +62,7 @@ local function table_output(results)
     end
     local width = 4
     for _, field in ipairs(result.fields or {}) do width = math.max(width, #field.path) end
-    table.insert(lines, string.format("%-" .. width .. "s  %11s  %s", "PATH", "BYTES", "VALUE"))
+    table.insert(lines, string.format("%-" .. width .. "s  %11s  %s", "PATH", "CHARS", "VALUE"))
     table.insert(lines, string.rep("-", width) .. "  " .. string.rep("-", 11) .. "  -----")
     for _, field in ipairs(result.fields or {}) do
       table.insert(lines, string.format(

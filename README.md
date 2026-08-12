@@ -61,6 +61,10 @@ environment variable.
 Parsing outputs clean nested JSON by default. Use `--output table`, `yaml`,
 `csv`, or `raw` when another representation is more useful.
 
+Field lengths and reported offsets use Rust `char` positions (Unicode scalar
+values), not encoded byte positions. The selected project encoding is used to
+decode input before parsing.
+
 ## Build
 
 ```powershell

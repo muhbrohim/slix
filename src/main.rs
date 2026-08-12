@@ -9,7 +9,7 @@ use serde::Serialize;
 use slix::config::{config_root, load_global_config};
 use slix::editor;
 use slix::output::{self, OutputFormat};
-use slix::parser::{ParseResult, parse_message};
+use slix::parser::{ParseResult, SCHEMA_VERSION, parse_message};
 use slix::project::{import_project, list_projects, resolve_active_project, set_active_project};
 use slix::spec::Spec;
 use slix::{Error, Result};
@@ -112,7 +112,7 @@ struct SpecRow {
     service_code: String,
     spec_path: PathBuf,
     fields: usize,
-    bytes: usize,
+    chars: usize,
     endpoint: Option<String>,
     category: Option<String>,
     section: Option<String>,
@@ -256,7 +256,7 @@ fn print_results(results: &[ParseResult], format: Format, protocol: bool) -> Res
         println!(
             "{}",
             serde_json::to_string_pretty(&BatchResult {
-                schema_version: 1,
+                schema_version: SCHEMA_VERSION,
                 results: results.to_vec(),
                 rendered_json: results
                     .iter()
@@ -316,10 +316,10 @@ fn list_command(project_name: Option<&str>, args: ListArgs) -> Result<u8> {
     } else {
         for row in rows {
             println!(
-                "{:<10} {:>5} fields {:>7} bytes  {}  {}",
+                "{:<10} {:>5} fields {:>7} chars  {}  {}",
                 row.service_code,
                 row.fields,
-                row.bytes,
+                row.chars,
                 row.program.as_deref().unwrap_or("-"),
                 row.endpoint.as_deref().unwrap_or("-")
             );
@@ -366,7 +366,7 @@ fn spec_rows(specs_dir: &Path) -> Result<Vec<SpecRow>> {
                     slix::spec::SpecEntry::Repeat(group) => group.fields.len() * group.count,
                 })
                 .sum(),
-            bytes: spec.byte_len(),
+            chars: spec.char_len(),
             endpoint: spec.metadata.get("endpoint").cloned(),
             category: spec.metadata.get("category").cloned(),
             section: spec.metadata.get("section").cloned(),

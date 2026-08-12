@@ -6,6 +6,11 @@ breaking changes before version 1.0.
 
 ## [Unreleased]
 
+### Changed
+
+- Parse field lengths and offsets as Rust `char` positions instead of encoded
+  byte positions.
+
 ## [0.1.0] - 2026-07-29
 
 ### Added

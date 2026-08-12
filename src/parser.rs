@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use crate::Result;
 use crate::spec::{FieldSpec, Spec, SpecEntry};
 
-pub const SCHEMA_VERSION: u8 = 1;
+pub const SCHEMA_VERSION: u8 = 2;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ParseResult {
@@ -82,18 +82,12 @@ fn parse_with_header(
     encoding: &'static Encoding,
     header_spec: Spec,
 ) -> Result<ParseResult> {
-    let mut offset = 0;
     let mut warnings = Vec::new();
+    let message = decode(encoding, bytes, &mut warnings);
+    let chars: Vec<_> = message.chars().collect();
+    let mut offset = 0;
     let mut errors = Vec::new();
-    let header = parse_section(
-        &header_spec,
-        "header",
-        bytes,
-        &mut offset,
-        encoding,
-        &mut warnings,
-        &mut errors,
-    );
+    let header = parse_section(&header_spec, "header", &chars, &mut offset, &mut errors);
     let service_code = header
         .fields
         .iter()
@@ -113,10 +107,8 @@ fn parse_with_header(
         Some(parse_section(
             &spec,
             "body",
-            bytes,
+            &chars,
             &mut offset,
-            encoding,
-            &mut warnings,
             &mut errors,
         ))
     } else {
@@ -130,15 +122,15 @@ fn parse_with_header(
         None
     };
 
-    let unparsed_tail = if offset < bytes.len() {
+    let unparsed_tail = if offset < chars.len() {
         warnings.push(Diagnostic::new(
             "overflow",
             format!(
-                "{} byte(s) remain after the selected specifications",
-                bytes.len() - offset
+                "{} character(s) remain after the selected specifications",
+                chars.len() - offset
             ),
         ));
-        Some(decode(encoding, &bytes[offset..], &mut warnings))
+        Some(chars[offset..].iter().collect())
     } else {
         None
     };
@@ -174,20 +166,16 @@ fn find_body_spec(root: &Path, service_code: &str) -> Option<PathBuf> {
 fn parse_section(
     spec: &Spec,
     prefix: &str,
-    bytes: &[u8],
+    chars: &[char],
     offset: &mut usize,
-    encoding: &'static Encoding,
-    warnings: &mut Vec<Diagnostic>,
     errors: &mut Vec<Diagnostic>,
 ) -> SectionResult {
     let mut fields = Vec::new();
     let mut groups = Vec::new();
     let mut truncated = false;
     let mut state = ParseState {
-        bytes,
+        chars,
         offset,
-        encoding,
-        warnings,
         errors,
     };
 
@@ -243,10 +231,8 @@ fn parse_section(
 }
 
 struct ParseState<'a> {
-    bytes: &'a [u8],
+    chars: &'a [char],
     offset: &'a mut usize,
-    encoding: &'static Encoding,
-    warnings: &'a mut Vec<Diagnostic>,
     errors: &'a mut Vec<Diagnostic>,
 }
 
@@ -256,12 +242,12 @@ fn parse_field(
     spec: &Spec,
     state: &mut ParseState<'_>,
 ) -> Option<FieldResult> {
-    let available = state.bytes.len().saturating_sub(*state.offset);
+    let available = state.chars.len().saturating_sub(*state.offset);
     if available < field.length {
         state.errors.push(Diagnostic::new(
             "truncated_field",
             format!(
-                "field `{path}` requires {} byte(s), but only {available} remain",
+                "field `{path}` requires {} character(s), but only {available} remain",
                 field.length
             ),
         ));
@@ -269,11 +255,7 @@ fn parse_field(
     }
     let start = *state.offset;
     *state.offset += field.length;
-    let value = decode(
-        state.encoding,
-        &state.bytes[start..*state.offset],
-        state.warnings,
-    );
+    let value = state.chars[start..*state.offset].iter().collect();
     Some(FieldResult {
         path,
         value,

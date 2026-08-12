@@ -45,7 +45,7 @@ impl Spec {
         load_spec(path)
     }
 
-    pub fn byte_len(&self) -> usize {
+    pub fn char_len(&self) -> usize {
         self.entries
             .iter()
             .map(|entry| match entry {

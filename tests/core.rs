@@ -13,7 +13,7 @@ fn parses_slicer_grammar_and_rejects_invalid_specs() {
     )
     .unwrap();
     assert_eq!(spec.metadata["owner"], "ops");
-    assert_eq!(spec.byte_len(), 7);
+    assert_eq!(spec.char_len(), 7);
 
     assert!(Spec::parse("a 1\na 2\n", "duplicate.spec").is_err());
     assert!(Spec::parse("@repeat x 2\n@end\n", "empty.spec").is_err());
@@ -32,7 +32,7 @@ fn dispatches_and_preserves_offsets_and_repeat_structure() {
     .unwrap();
 
     let result = parse_message(b"ABC X0102", root.path(), UTF_8).unwrap();
-    assert_eq!(result.schema_version, 1);
+    assert_eq!(result.schema_version, 2);
     assert_eq!(result.service.code.as_deref(), Some("ABC "));
     assert_eq!(result.service.dispatch_code.as_deref(), Some("ABC"));
     assert_eq!(result.header.fields[0].value, "ABC ");
@@ -40,6 +40,60 @@ fn dispatches_and_preserves_offsets_and_repeat_structure() {
     assert_eq!(result.body.as_ref().unwrap().groups[0].occurrences.len(), 2);
     assert_eq!(result.fields[3].path, "body.rows[02].value");
     assert!(result.errors.is_empty());
+}
+
+#[test]
+fn parses_fields_and_offsets_by_rust_char() {
+    let root = tempfile::tempdir().unwrap();
+    fs::create_dir(root.path().join("body")).unwrap();
+    fs::write(root.path().join("header.spec"), "service_code 2\nflag 1\n").unwrap();
+    fs::write(root.path().join("body").join("éA.spec"), "payload 1\n").unwrap();
+
+    let result = parse_message("éAZ猫!".as_bytes(), root.path(), UTF_8).unwrap();
+
+    assert_eq!(result.schema_version, 2);
+    assert_eq!(result.header.fields[0].value, "éA");
+    assert_eq!(
+        (result.header.fields[0].start, result.header.fields[0].end),
+        (0, 1)
+    );
+    assert_eq!(result.header.fields[1].value, "Z");
+    assert_eq!(
+        (result.header.fields[1].start, result.header.fields[1].end),
+        (2, 2)
+    );
+    assert_eq!(result.body.as_ref().unwrap().fields[0].value, "猫");
+    assert_eq!(
+        (
+            result.body.as_ref().unwrap().fields[0].start,
+            result.body.as_ref().unwrap().fields[0].end
+        ),
+        (3, 3)
+    );
+    assert_eq!(result.unparsed_tail.as_deref(), Some("!"));
+    assert_eq!(
+        result.warnings[0].message,
+        "1 character(s) remain after the selected specifications"
+    );
+}
+
+#[test]
+fn detects_truncation_by_rust_char() {
+    let root = tempfile::tempdir().unwrap();
+    fs::write(
+        root.path().join("header.spec"),
+        "service_code 1\npayload 2\n",
+    )
+    .unwrap();
+
+    let result = parse_message("é".as_bytes(), root.path(), UTF_8).unwrap();
+
+    assert_eq!(result.header.fields[0].value, "é");
+    assert_eq!(result.errors[0].code, "truncated_field");
+    assert_eq!(
+        result.errors[0].message,
+        "field `header.payload` requires 2 character(s), but only 0 remain"
+    );
 }
 
 #[test]

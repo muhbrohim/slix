@@ -30,7 +30,7 @@ pub fn render_table(result: &ParseResult) -> String {
         .max()
         .unwrap_or(4)
         .max(4);
-    let mut output = format!("{:<path_width$}  {:>11}  VALUE\n", "PATH", "BYTES");
+    let mut output = format!("{:<path_width$}  {:>11}  VALUE\n", "PATH", "CHARS");
     output.push_str(&format!(
         "{}  {}  {}\n",
         "-".repeat(path_width),
