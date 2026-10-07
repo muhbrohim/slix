@@ -65,7 +65,7 @@ jobs:
           mkdir smoke
           tar -xzf "$name.tar.gz" -C smoke
           "smoke/slix" --version
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: slix-${{ matrix.target }}
           path: slix-v${{ needs.validate.outputs.version }}-${{ matrix.target }}.${{ matrix.archive }}
